@@ -113,7 +113,7 @@ struct SmartResults: View {
                          good: s.cleanup.total == 0, run: true)
                     tile(1, .protection, value: s.protection.threats.isEmpty ? "No threats" : "\(s.protection.threats.count) found",
                          status: "\(s.protection.privacy.count) privacy items to review", good: s.protection.threats.isEmpty,
-                         run: !s.protection.threats.isEmpty)
+                         run: s.protection.threats.contains(where: \.selected))
                     tile(2, .performance, value: "\(s.performance.tasks.filter(\.selected).count) tasks",
                          status: "Maintenance recommended", good: false, run: false)
                     tile(3, .applications, value: "\(s.apps.apps.count) apps",

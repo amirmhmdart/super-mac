@@ -235,6 +235,20 @@ enum ProtectionScanner {
         "qsearch", "smartsearch", "shlayer", "pirrit", "imunizator", "macsearch", "searchmarquis",
     ]
 
+    /// The adware signature found in `name` at the start of a word, so "adload" does not match "payloadloader".
+    static func signature(in name: String) -> String? {
+        adwareSignatures.first { sig in
+            var from = name.startIndex
+            while let r = name.range(of: sig, range: from..<name.endIndex) {
+                if r.lowerBound == name.startIndex { return true }
+                let before = name[name.index(before: r.lowerBound)]
+                if !before.isLetter && !before.isNumber { return true }
+                from = name.index(after: r.lowerBound)
+            }
+            return false
+        }
+    }
+
     static func scanThreats() -> [FileItem] {
         let dirs = [home("Library/LaunchAgents"), URL(fileURLWithPath: "/Library/LaunchAgents"),
                     URL(fileURLWithPath: "/Library/LaunchDaemons")]
@@ -243,20 +257,22 @@ enum ProtectionScanner {
             for f in FS.children(d) where f.pathExtension == "plist" {
                 let name = f.lastPathComponent.lowercased()
                 var reason = ""
-                if let sig = adwareSignatures.first(where: { name.contains($0) }) {
+                var known = false
+                if let sig = signature(in: name) {
                     reason = "Matches known adware (\(sig.trimmingCharacters(in: CharacterSet(charactersIn: "."))))"
+                    known = true
                 } else if let dict = NSDictionary(contentsOf: f) {
                     let prog = (dict["Program"] as? String) ?? ((dict["ProgramArguments"] as? [String])?.first ?? "")
                     if prog.hasPrefix("/tmp/") || prog.hasPrefix("/private/tmp/") || prog.contains("/var/folders/") {
                         reason = "Runs a program from a temporary folder"
                     } else if prog.split(separator: "/").contains(where: { $0.hasPrefix(".") && $0.count > 1 }) {
                         reason = "Runs a program from a hidden folder"
-                    } else if !prog.isEmpty, !FS.exists(URL(fileURLWithPath: prog)), d.path.hasPrefix(homePath) {
+                    } else if prog.hasPrefix("/"), !FS.exists(URL(fileURLWithPath: prog)), d.path.hasPrefix(homePath) {
                         reason = "Broken: points to a program that no longer exists"
                     }
                 }
                 if !reason.isEmpty {
-                    out.append(FileItem(url: f, size: FS.size(of: f), note: reason))
+                    out.append(FileItem(url: f, size: FS.size(of: f), selected: known, note: reason))
                 }
             }
         }
