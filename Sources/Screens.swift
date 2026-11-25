@@ -812,7 +812,7 @@ struct SpaceLensScreen: View {
     var map: some View {
         VStack(spacing: 14) {
             HStack(spacing: 6) {
-                Button { withAnimation(.smooth) { m.path = []; m.nodes = [] } } label: { Image(systemName: "house.fill") }
+                Button { withAnimation(.smooth) { m.close() } } label: { Image(systemName: "house.fill") }
                     .buttonStyle(GhostButtonStyle())
                 ScrollView(.horizontal) {
                     HStack(spacing: 4) {

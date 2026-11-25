@@ -860,11 +860,17 @@ final class LensModel: ObservableObject {
         open(path[index], push: false)
     }
 
+    /// Back to the landing page. Stops a load in progress so it cannot cache a partial result.
+    func close() {
+        loadTask?.cancel()
+        path = []; nodes = []; loading = false
+    }
+
     func trash(_ node: LensNode) {
         if FS.trash([node.url]).isEmpty {
             withAnimation { nodes.removeAll { $0.id == node.id } }
             cache = [:]
-            if let c = current { cache[c] = nodes }
+            if let c = current, !loading { cache[c] = nodes }
         }
     }
 }
