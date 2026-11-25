@@ -133,22 +133,24 @@ enum JunkScanner {
             }
             for url in candidates {
                 if isProtected(url.lastPathComponent, kind, running: running) { continue }
-                if !excluded.isEmpty && PrefKeys.isExcluded(url) { continue }
                 if kind == .temp, let m = FS.modified(url), m > dayAgo { continue }
-                let s = FS.size(of: url)
-                if s > 0 { out.append(FileItem(url: url, size: s)) }
+                let parts = excluded.isEmpty ? [url] : PrefKeys.removable(url)
+                let s = parts.reduce(Int64(0)) { $0 + FS.size(of: $1) }
+                if s > 0 { out.append(FileItem(url: url, size: s, note: parts == [url] ? "" : "Ignored items inside are kept")) }
             }
         }
         return out.sorted { $0.size > $1.size }
     }
 
-    /// Permanent delete, only directly inside an allowed folder. Returns bytes left behind.
+    /// Permanent delete, only directly inside an allowed folder. Ignored items inside are stepped around. Returns bytes left behind.
     static func remove(_ item: FileItem) -> Int64 {
         let parent = item.url.deletingLastPathComponent().standardizedFileURL.path
         let allowed = JunkKind.allCases.flatMap(\.allowedParents)
-        guard allowed.contains(parent) else { return item.size }
-        do { try FS.fm.removeItem(at: item.url); return 0 }
-        catch { return FS.exists(item.url) ? FS.size(of: item.url) : 0 }
+        guard allowed.contains(parent), !PrefKeys.isExcluded(item.url) else { return item.size }
+        return PrefKeys.removable(item.url).reduce(Int64(0)) { left, u in
+            do { try FS.fm.removeItem(at: u); return left }
+            catch { return left + (FS.exists(u) ? FS.size(of: u) : 0) }
+        }
     }
 }
 
@@ -533,7 +535,7 @@ enum AppScanner {
         }
         var seen = Set<String>()
         return paths.compactMap { u in
-            guard FS.exists(u), !PrefKeys.isExcluded(u), seen.insert(u.path).inserted else { return nil }
+            guard FS.exists(u), !PrefKeys.mustKeep(u), seen.insert(u.path).inserted else { return nil }
             return FileItem(url: u, size: FS.size(of: u))
         }
     }
@@ -640,14 +642,14 @@ final class AppsModel: ObservableObject {
             var needAdmin: [AppEntry] = []
             for app in chosen {
                 if FS.trash([app.url]).isEmpty {
-                    _ = FS.trash(app.leftovers.map(\.url)); removed += 1; freed += app.totalSize
+                    _ = FS.trash(app.leftovers.map(\.url).filter { !PrefKeys.mustKeep($0) }); removed += 1; freed += app.totalSize
                 } else { needAdmin.append(app) }
             }
             if !needAdmin.isEmpty {
                 let trashDir = home(".Trash").path
                 let cmd = needAdmin.map { "mv -f \(shellQuote($0.url.path)) \(shellQuote(trashDir + "/"))" }.joined(separator: "; ")
                 if runAsAdmin(cmd) {
-                    for app in needAdmin { _ = FS.trash(app.leftovers.map(\.url)); removed += 1; freed += app.totalSize }
+                    for app in needAdmin { _ = FS.trash(app.leftovers.map(\.url).filter { !PrefKeys.mustKeep($0) }); removed += 1; freed += app.totalSize }
                 } else { failed += needAdmin.map(\.name) }
             }
             let of = FS.trash(orphanChosen.map(\.url))

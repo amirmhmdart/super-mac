@@ -211,7 +211,7 @@ struct CleanupScreen: View {
                 WorkingScreen(module: .cleanup, title: "Sweeping things up…", progress: m.progress, detail: m.current)
             case .done:
                 DoneScreen(module: .cleanup, big: fmt(m.freed), subtitle: "of junk cleaned up"
-                    + (m.skipped > 0 ? " · \(m.skipped) items in use were left alone" : "")) { m.reset() }
+                    + (m.skipped > 0 ? " · \(m.skipped) items in use or ignored were left alone" : "")) { m.reset() }
             }
         }
         .id(m.phase).transition(phaseTransition)
