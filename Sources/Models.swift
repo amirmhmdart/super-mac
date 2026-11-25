@@ -710,8 +710,10 @@ enum ClutterScanner {
 
     static func installers() -> [FileItem] {
         let exts: Set<String> = ["dmg", "pkg", "mpkg", "iso", "xip"]
-        return FS.children(home("Downloads")).filter { exts.contains($0.pathExtension.lowercased()) && !PrefKeys.isExcluded($0) }.map {
-            FileItem(url: $0, size: FS.size(of: $0), selected: true, note: $0.pathExtension.uppercased(), date: FS.modified($0))
+        let old = Date().addingTimeInterval(-30 * 86400) // ticked only after 30 days
+        return FS.children(home("Downloads")).filter { exts.contains($0.pathExtension.lowercased()) && !PrefKeys.isExcluded($0) }.map { u in
+            let d = FS.modified(u)
+            return FileItem(url: u, size: FS.size(of: u), selected: d.map { $0 < old } ?? false, note: u.pathExtension.uppercased(), date: d)
         }.sorted { $0.size > $1.size }
     }
 
